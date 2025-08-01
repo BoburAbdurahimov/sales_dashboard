@@ -60,8 +60,8 @@ class ProductWebController extends Controller
         }
         $query->orderBy($sort, $direction);
 
-        // Get all results without pagination
-        $products = $query->get();
+        // Get paginated results
+        $products = $query->paginate(15)->withQueryString();
 
         // For filter dropdowns
         $categories = Product::select('category')->distinct()->pluck('category');

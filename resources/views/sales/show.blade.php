@@ -9,7 +9,7 @@
             <p class="card-text"><strong>Customer:</strong> {{ $sale->customer->name ?? '-' }}</p>
             <p class="card-text"><strong>Product:</strong> {{ $sale->product->name ?? '-' }}</p>
             <p class="card-text"><strong>Quantity:</strong> {{ $sale->quantity }}</p>
-            <p class="card-text"><strong>Created At:</strong> {{ $sale->created_at->format('Y-m-d H:i:s') }}</p>
+            <p class="card-text"><strong>Created At:</strong> {{ $sale->created_at->format('d-m-Y H:i:s') }}</p>
             <a href="{{ route('sales.edit', $sale) }}" class="btn btn-warning">Edit</a>
             <a href="{{ route('sales.index') }}" class="btn btn-secondary">Back to List</a>
         </div>

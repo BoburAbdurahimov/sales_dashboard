@@ -48,11 +48,11 @@
                                 </tr>
                                 <tr>
                                     <td><strong>Created:</strong></td>
-                                    <td>{{ $product->created_at->format('M d, Y H:i') }}</td>
+                                    <td>{{ $product->created_at->format('d-m-Y H:i') }}</td>
                                 </tr>
                                 <tr>
                                     <td><strong>Last Updated:</strong></td>
-                                    <td>{{ $product->updated_at->format('M d, Y H:i') }}</td>
+                                    <td>{{ $product->updated_at->format('d-m-Y H:i') }}</td>
                                 </tr>
                             </table>
                         </div>

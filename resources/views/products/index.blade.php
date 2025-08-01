@@ -1,6 +1,51 @@
 @extends('layouts.app')
 
 @section('content')
+<style>
+.sortable-header {
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+.sortable-header:hover {
+    color: #0d6efd !important;
+}
+.sortable-header i {
+    font-size: 0.8em;
+    margin-left: 4px;
+}
+
+/* Pagination styling */
+.pagination {
+    margin-bottom: 0;
+    gap: 2px;
+}
+.page-link {
+    color: #6c757d;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+.page-link:hover {
+    color: #0d6efd;
+    background-color: #f8f9fa;
+    border-color: #0d6efd;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+.page-item.disabled .page-link {
+    color: #adb5bd;
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+}
+</style>
 <div class="container">
     <h1>Products</h1>
     <a href="{{ route('products.create') }}" class="btn btn-primary mb-3">Add Product</a>
@@ -74,19 +119,86 @@
 
     <!-- Results Summary -->
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <p class="text-muted mb-0">
-            Showing {{ $products->count() }} products
-        </p>
+        <div>
+            @if($products->total() > 0)
+            <div class="d-flex align-items-center">
+                <span class="badge bg-success me-2">{{ $products->total() }}</span>
+                <span class="text-muted">products found</span>
+                @if($products->hasPages())
+                <span class="text-muted ms-3">
+                    Page {{ $products->currentPage() }} of {{ $products->lastPage() }}
+                </span>
+                @endif
+            </div>
+            @endif
+            @if(request('sort'))
+            <small class="text-muted">
+                <i class="bi bi-sort-down"></i> 
+                Sorted by: <strong>{{ ucfirst(request('sort')) }}</strong> 
+                ({{ request('direction') == 'asc' ? 'Ascending' : 'Descending' }})
+            </small>
+            @endif
+        </div>
     </div>
 
     <table class="table table-bordered">
         <thead>
             <tr>
-                <th><a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'id', 'direction' => request('sort') == 'id' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}">ID</a></th>
-                <th><a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'name', 'direction' => request('sort') == 'name' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}">Name</a></th>
-                <th><a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'category', 'direction' => request('sort') == 'category' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}">Category</a></th>
-                <th><a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'price', 'direction' => request('sort') == 'price' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}">Price</a></th>
-                <th><a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'quantity', 'direction' => request('sort') == 'quantity' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}">Quantity</a></th>
+                <th>
+                    <a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'id', 'direction' => request('sort') == 'id' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                       class="text-decoration-none text-dark sortable-header">
+                        ID
+                        @if(request('sort') == 'id')
+                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                        @else
+                            <i class="bi bi-arrow-down-up text-muted"></i>
+                        @endif
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'name', 'direction' => request('sort') == 'name' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                       class="text-decoration-none text-dark sortable-header">
+                        Name
+                        @if(request('sort') == 'name')
+                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                        @else
+                            <i class="bi bi-arrow-down-up text-muted"></i>
+                        @endif
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'category', 'direction' => request('sort') == 'category' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                       class="text-decoration-none text-dark sortable-header">
+                        Category
+                        @if(request('sort') == 'category')
+                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                        @else
+                            <i class="bi bi-arrow-down-up text-muted"></i>
+                        @endif
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'price', 'direction' => request('sort') == 'price' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                       class="text-decoration-none text-dark sortable-header">
+                        Price
+                        @if(request('sort') == 'price')
+                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                        @else
+                            <i class="bi bi-arrow-down-up text-muted"></i>
+                        @endif
+                    </a>
+                </th>
+                <th>
+                    <a href="{{ route('products.index', array_merge(request()->query(), ['sort' => 'quantity', 'direction' => request('sort') == 'quantity' && request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                       class="text-decoration-none text-dark sortable-header">
+                        Quantity
+                        @if(request('sort') == 'quantity')
+                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                        @else
+                            <i class="bi bi-arrow-down-up text-muted"></i>
+                        @endif
+                    </a>
+                </th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -119,5 +231,12 @@
             @endforelse
         </tbody>
     </table>
+    
+    <!-- Pagination -->
+    @if($products->hasPages())
+    <div class="d-flex justify-content-center mt-4 p-3 bg-light rounded">
+        {{ $products->links() }}
+    </div>
+    @endif
 </div>
 @endsection

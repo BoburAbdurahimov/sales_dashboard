@@ -62,9 +62,13 @@ class DashboardController extends Controller
 
     public function reports(Request $request)
     {
-        // Get filter parameters
-        $dateFrom = $request->get('date_from', now()->startOfMonth());
-        $dateTo = $request->get('date_to', now());
+        // Get filter parameters and convert date format from dd-mm-yyyy to Y-m-d
+        $dateFromInput = $request->get('date_from');
+        $dateToInput = $request->get('date_to');
+        
+        // Convert dd-mm-yyyy to Y-m-d format for database queries
+        $dateFrom = $dateFromInput ? \Carbon\Carbon::createFromFormat('d-m-Y', $dateFromInput)->startOfDay() : now()->subDays(30);
+        $dateTo = $dateToInput ? \Carbon\Carbon::createFromFormat('d-m-Y', $dateToInput)->endOfDay() : now();
         $category = $request->get('category');
         $region = $request->get('region');
         $customerId = $request->get('customer_id');
@@ -139,18 +143,58 @@ class DashboardController extends Controller
             });
         }
 
-        // Get all sales data without pagination
-        $salesData = $salesQuery->orderBy('created_at', 'desc')->get();
-
-        // Apply amount filters after getting the data (since amount is calculated)
-        if ($minAmount || $maxAmount) {
-            $salesData = $salesData->filter(function ($sale) use ($minAmount, $maxAmount) {
-                $amount = $sale->quantity * ($sale->product->price ?? 0);
-                if ($minAmount && $amount < $minAmount) return false;
-                if ($maxAmount && $amount > $maxAmount) return false;
-                return true;
-            });
+        // Apply sorting to the query
+        $sort = $request->get('sort', 'date');
+        $direction = $request->get('direction', 'desc');
+        
+        // Apply sorting to the query based on the requested column
+        switch ($sort) {
+            case 'id':
+                $salesQuery->orderBy('id', $direction);
+                break;
+            case 'customer':
+                $salesQuery->join('customers', 'sales.customer_id', '=', 'customers.id')
+                          ->orderBy('customers.name', $direction);
+                break;
+            case 'product':
+                $salesQuery->join('products', 'sales.product_id', '=', 'products.id')
+                          ->orderBy('products.name', $direction);
+                break;
+            case 'category':
+                $salesQuery->join('products', 'sales.product_id', '=', 'products.id')
+                          ->orderBy('products.category', $direction);
+                break;
+            case 'region':
+                $salesQuery->join('customers', 'sales.customer_id', '=', 'customers.id')
+                          ->orderBy('customers.region', $direction);
+                break;
+            case 'quantity':
+                $salesQuery->orderBy('quantity', $direction);
+                break;
+            case 'amount':
+                // For amount sorting, we'll need to calculate it in the query
+                $salesQuery->join('products', 'sales.product_id', '=', 'products.id')
+                          ->orderByRaw('(sales.quantity * products.price)', $direction);
+                break;
+            case 'date':
+            default:
+                $salesQuery->orderBy('created_at', $direction);
+                break;
         }
+        
+        // Apply amount filters to the query
+        if ($minAmount || $maxAmount) {
+            $salesQuery->join('products', 'sales.product_id', '=', 'products.id');
+            if ($minAmount) {
+                $salesQuery->whereRaw('(sales.quantity * products.price) >= ?', [$minAmount]);
+            }
+            if ($maxAmount) {
+                $salesQuery->whereRaw('(sales.quantity * products.price) <= ?', [$maxAmount]);
+            }
+        }
+        
+        // Get paginated results
+        $salesData = $salesQuery->paginate(15)->withQueryString();
 
         // Calculate report statistics - using product price instead of unit_price
         $totalRevenue = Sale::join('products', 'sales.product_id', '=', 'products.id')

@@ -33,13 +33,15 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <label for="date_from" class="form-label">Date From</label>
-                                <input type="date" class="form-control" id="date_from" name="date_from" 
-                                       value="{{ request('date_from', date('Y-m-01')) }}">
+                                <input type="text" class="form-control datepicker" id="date_from" name="date_from" 
+                                       value="{{ request('date_from', date('d-m-Y', strtotime('-30 days'))) }}" 
+                                       placeholder="dd-mm-yyyy">
                             </div>
                             <div class="col-md-3">
                                 <label for="date_to" class="form-label">Date To</label>
-                                <input type="date" class="form-control" id="date_to" name="date_to" 
-                                       value="{{ request('date_to', date('Y-m-d')) }}">
+                                <input type="text" class="form-control datepicker" id="date_to" name="date_to" 
+                                       value="{{ request('date_to', date('d-m-Y')) }}" 
+                                       placeholder="dd-mm-yyyy">
                             </div>
                             <div class="col-md-3">
                                 <label for="category" class="form-label">Category</label>
@@ -146,9 +148,9 @@
                                 <!-- <button type="button" class="btn btn-info" onclick="testExport()">
                                     <i class="bi bi-download"></i> Test Export
                                 </button> -->
-                                <a href="{{ route('sales.reports') }}" class="btn btn-outline-secondary">
+                                <button type="button" class="btn btn-outline-secondary" onclick="resetFilters()">
                                     <i class="bi bi-arrow-clockwise"></i> Reset Filters
-                                </a>
+                                </button>
                                 <!-- <button type="button" class="btn btn-outline-primary" onclick="toggleMoreFilters()">
                                     <i class="bi bi-funnel-fill"></i> More Filters
                                 </button> -->
@@ -246,9 +248,9 @@
                     @endif
                 </div>
                 <hr>
-                <a href="{{ route('sales.reports') }}" class="btn btn-sm btn-outline-danger">
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="resetFilters()">
                     <i class="bi bi-x-circle"></i> Clear All Filters
-                </a>
+                </button>
             </div>
         </div>
     </div>
@@ -385,8 +387,21 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Detailed Sales Data</h3>
-                    <div class="card-tools">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="card-title">Detailed Sales Data</h3>
+                        @if($salesData->total() > 0)
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-primary me-2">{{ $salesData->total() }}</span>
+                            <span class="text-muted">sales records</span>
+                            @if($salesData->hasPages())
+                            <span class="text-muted ms-3">
+                                Page {{ $salesData->currentPage() }} of {{ $salesData->lastPage() }}
+                            </span>
+                            @endif
+                        </div>
+                        @endif
+                    </div>
+                    <div class="card-tools mt-2">
                         <div class="input-group input-group-sm" style="width: 250px;">
                             <input type="text" name="table_search" class="form-control float-end" placeholder="Search sales data...">
                             <div class="input-group-append">
@@ -401,14 +416,94 @@
                     <table class="table table-hover text-nowrap">
                         <thead>
                             <tr>
-                                <th>Order ID</th>
-                                <th>Customer</th>
-                                <th>Product</th>
-                                <th>Category</th>
-                                <th>Region</th>
-                                <th>Quantity</th>
-                                <th>Amount</th>
-                                <th>Date</th>
+                                <th>
+                                    <a href="{{ request()->fullUrlWithQuery(['sort' => 'id', 'direction' => request('sort') == 'id' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" 
+                                       class="text-decoration-none text-dark sortable-header">
+                                        Order ID
+                                        @if(request('sort') == 'id')
+                                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                                        @else
+                                            <i class="bi bi-arrow-down-up text-muted"></i>
+                                        @endif
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ request()->fullUrlWithQuery(['sort' => 'customer', 'direction' => request('sort') == 'customer' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" 
+                                       class="text-decoration-none text-dark">
+                                        Customer
+                                        @if(request('sort') == 'customer')
+                                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                                        @else
+                                            <i class="bi bi-arrow-down-up text-muted"></i>
+                                        @endif
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ request()->fullUrlWithQuery(['sort' => 'product', 'direction' => request('sort') == 'product' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" 
+                                       class="text-decoration-none text-dark">
+                                        Product
+                                        @if(request('sort') == 'product')
+                                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                                        @else
+                                            <i class="bi bi-arrow-down-up text-muted"></i>
+                                        @endif
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ request()->fullUrlWithQuery(['sort' => 'category', 'direction' => request('sort') == 'category' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" 
+                                       class="text-decoration-none text-dark">
+                                        Category
+                                        @if(request('sort') == 'category')
+                                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                                        @else
+                                            <i class="bi bi-arrow-down-up text-muted"></i>
+                                        @endif
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ request()->fullUrlWithQuery(['sort' => 'region', 'direction' => request('sort') == 'region' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" 
+                                       class="text-decoration-none text-dark">
+                                        Region
+                                        @if(request('sort') == 'region')
+                                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                                        @else
+                                            <i class="bi bi-arrow-down-up text-muted"></i>
+                                        @endif
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ request()->fullUrlWithQuery(['sort' => 'quantity', 'direction' => request('sort') == 'quantity' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" 
+                                       class="text-decoration-none text-dark">
+                                        Quantity
+                                        @if(request('sort') == 'quantity')
+                                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                                        @else
+                                            <i class="bi bi-arrow-down-up text-muted"></i>
+                                        @endif
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ request()->fullUrlWithQuery(['sort' => 'amount', 'direction' => request('sort') == 'amount' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" 
+                                       class="text-decoration-none text-dark">
+                                        Amount
+                                        @if(request('sort') == 'amount')
+                                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                                        @else
+                                            <i class="bi bi-arrow-down-up text-muted"></i>
+                                        @endif
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="{{ request()->fullUrlWithQuery(['sort' => 'date', 'direction' => request('sort') == 'date' && request('direction') == 'asc' ? 'desc' : 'asc']) }}" 
+                                       class="text-decoration-none text-dark">
+                                        Date
+                                        @if(request('sort') == 'date')
+                                            <i class="bi bi-arrow-{{ request('direction') == 'asc' ? 'up' : 'down' }}"></i>
+                                        @else
+                                            <i class="bi bi-arrow-down-up text-muted"></i>
+                                        @endif
+                                    </a>
+                                </th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -422,7 +517,7 @@
                                 <td>{{ $sale->customer->region ?? 'N/A' }}</td>
                                 <td>{{ $sale->quantity }}</td>
                                 <td>${{ number_format($sale->quantity * ($sale->product->price ?? 0), 2) }}</td>
-                                <td>{{ $sale->created_at->format('Y-m-d H:i') }}</td>
+                                <td>{{ $sale->created_at->format('d-m-Y H:i') }}</td>
                                 <td>
                                     <a href="{{ route('sales.show', $sale->id) }}" class="btn btn-sm btn-outline-primary">View</a>
                                 </td>
@@ -434,6 +529,13 @@
                             @endforelse
                         </tbody>
                     </table>
+                    
+                    <!-- Pagination -->
+                    @if($salesData->hasPages())
+                    <div class="d-flex justify-content-center mt-4 p-3 bg-light rounded">
+                        {{ $salesData->links() }}
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -442,10 +544,58 @@
 
 @push('styles')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/apexcharts@3.37.1/dist/apexcharts.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css">
+<style>
+.sortable-header {
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+.sortable-header:hover {
+    color: #0d6efd !important;
+}
+.sortable-header i {
+    font-size: 0.8em;
+    margin-left: 4px;
+}
+
+/* Pagination styling */
+.pagination {
+    margin-bottom: 0;
+    gap: 2px;
+}
+.page-link {
+    color: #6c757d;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+.page-link:hover {
+    color: #0d6efd;
+    background-color: #f8f9fa;
+    border-color: #0d6efd;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+.page-item.disabled .page-link {
+    color: #adb5bd;
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+}
+</style>
 @endpush
 
 @push('scripts')
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.37.1/dist/apexcharts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
 <script>
 // Revenue Trend Chart
 const revenueTrendOptions = {
@@ -777,6 +927,17 @@ function setChartPeriod(period) {
     });
 }
 
+// Initialize datepickers
+$(document).ready(function() {
+    $('.datepicker').datepicker({
+        format: 'dd-mm-yyyy',
+        autoclose: true,
+        todayHighlight: true,
+        orientation: 'bottom auto',
+        clearBtn: true
+    });
+});
+
 // Auto-submit form when certain filters change
 document.addEventListener('DOMContentLoaded', function() {
     const autoSubmitFilters = ['customer_id', 'product_id', 'category', 'region', 'gender', 'age_range'];
@@ -815,26 +976,87 @@ function updateActiveFiltersCount() {
     }
 }
 
+// Reset filters function
+function resetFilters() {
+    const form = document.getElementById('reportForm');
+    
+    // Reset date fields to last 30 days in dd-mm-yyyy format
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    // Format dates as dd-mm-yyyy
+    const formatDate = (date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+    };
+    
+    form.date_from.value = formatDate(thirtyDaysAgo);
+    form.date_to.value = formatDate(today);
+    
+    // Reset all select fields to empty
+    const selectFields = ['category', 'region', 'customer_id', 'product_id', 'gender', 'age_range'];
+    selectFields.forEach(field => {
+        const element = form.querySelector(`[name="${field}"]`);
+        if (element) {
+            element.value = '';
+        }
+    });
+    
+    // Reset all number input fields
+    const numberFields = ['min_quantity', 'max_quantity', 'min_amount', 'max_amount'];
+    numberFields.forEach(field => {
+        const element = form.querySelector(`[name="${field}"]`);
+        if (element) {
+            element.value = '';
+        }
+    });
+    
+    // Hide advanced filters
+    document.getElementById('advancedFilters').style.display = 'none';
+    document.getElementById('moreAdvancedFilters').style.display = 'none';
+    
+    // Update the toggle button text
+    const toggleBtn = document.querySelector('[onclick="toggleAdvancedFilters()"]');
+    if (toggleBtn) {
+        toggleBtn.innerHTML = '<i class="bi bi-funnel"></i> Toggle Advanced Filters';
+    }
+    
+    // Submit the form
+    form.submit();
+}
+
 // Quick filter presets
 function applyQuickFilter(preset) {
     const form = document.getElementById('reportForm');
     
+    // Helper function to format date as dd-mm-yyyy
+    const formatDate = (date) => {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+    };
+    
     switch(preset) {
         case 'today':
-            form.date_from.value = new Date().toISOString().split('T')[0];
-            form.date_to.value = new Date().toISOString().split('T')[0];
+            const today = new Date();
+            form.date_from.value = formatDate(today);
+            form.date_to.value = formatDate(today);
             break;
         case 'this_week':
-            const today = new Date();
-            const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
-            const endOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 6));
-            form.date_from.value = startOfWeek.toISOString().split('T')[0];
-            form.date_to.value = endOfWeek.toISOString().split('T')[0];
+            const weekToday = new Date();
+            const startOfWeek = new Date(weekToday.setDate(weekToday.getDate() - weekToday.getDay()));
+            const endOfWeek = new Date(weekToday.setDate(weekToday.getDate() - weekToday.getDay() + 6));
+            form.date_from.value = formatDate(startOfWeek);
+            form.date_to.value = formatDate(endOfWeek);
             break;
         case 'this_month':
             const now = new Date();
-            form.date_from.value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-            form.date_to.value = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+            form.date_from.value = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
+            form.date_to.value = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
             break;
         case 'high_value':
             form.min_amount.value = '100';

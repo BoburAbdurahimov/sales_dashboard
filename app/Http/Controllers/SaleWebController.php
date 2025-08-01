@@ -74,8 +74,8 @@ class SaleWebController extends Controller
             $query->orderBy($sort, $direction);
         }
 
-        // Get all results without pagination
-        $sales = $query->get();
+        // Get paginated results
+        $sales = $query->paginate(15)->withQueryString();
 
         // For filter dropdowns
         $customers = Customer::select('id', 'name')->orderBy('name')->get();

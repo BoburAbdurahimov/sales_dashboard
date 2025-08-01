@@ -45,8 +45,8 @@ class CustomerWebController extends Controller
 
         $query->orderBy($sort, $direction);
 
-        // Get all results without pagination
-        $customers = $query->get();
+        // Get paginated results
+        $customers = $query->paginate(15)->withQueryString();
 
         // For filter dropdowns
         $regions = Customer::select('region')->distinct()->pluck('region');
