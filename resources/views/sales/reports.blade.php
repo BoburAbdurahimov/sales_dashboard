@@ -597,16 +597,15 @@
 <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.37.1/dist/apexcharts.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
 <script>
+// Get chart data from PHP
+const chartData = @json($chartData ?? []);
+
 // Revenue Trend Chart
 const revenueTrendOptions = {
     series: [
         {
             name: 'Revenue',
-            data: [31000, 40000, 28000, 51000, 42000, 82000, 56000, 74000, 61000, 89000, 76000, 92000]
-        },
-        {
-            name: 'Orders',
-            data: [11000, 32000, 45000, 32000, 34000, 52000, 41000, 80000, 56000, 55000, 67000, 88000]
+            data: chartData.revenueTrend.map(item => item.total_revenue)
         }
     ],
     chart: {
@@ -620,7 +619,7 @@ const revenueTrendOptions = {
         show: true,
         position: 'top'
     },
-    colors: ['#0d6efd', '#20c997'],
+    colors: ['#0d6efd'],
     dataLabels: {
         enabled: false
     },
@@ -628,16 +627,14 @@ const revenueTrendOptions = {
         curve: 'smooth'
     },
     xaxis: {
-        type: 'datetime',
-        categories: [
-            '2024-01-01', '2024-02-01', '2024-03-01', '2024-04-01',
-            '2024-05-01', '2024-06-01', '2024-07-01', '2024-08-01',
-            '2024-09-01', '2024-10-01', '2024-11-01', '2024-12-01'
-        ]
+        type: 'category',
+        categories: chartData.revenueTrend.map(item => item.month)
     },
     tooltip: {
-        x: {
-            format: 'MMMM yyyy'
+        y: {
+            formatter: function (val) {
+                return '$' + val.toLocaleString();
+            }
         }
     }
 };
@@ -647,15 +644,22 @@ revenueTrendChart.render();
 
 // Top Products Chart
 const topProductsOptions = {
-    series: [44, 55, 13, 43, 22],
+    series: chartData.topProducts.map(item => item.total_revenue),
     chart: {
         type: 'donut',
         height: 300
     },
-    labels: ['iPhone 15 Pro', 'MacBook Pro', 'AirPods Pro', 'iPad Air', 'Apple Watch'],
-    colors: ['#0d6efd', '#20c997', '#ffc107', '#dc3545', '#6f42c1'],
+    labels: chartData.topProducts.map(item => item.product_name),
+    colors: ['#0d6efd', '#20c997', '#ffc107', '#dc3545', '#6f42c1', '#fd7e14', '#e83e8c', '#6c757d', '#28a745', '#17a2b8'],
     legend: {
         position: 'bottom'
+    },
+    tooltip: {
+        y: {
+            formatter: function (val) {
+                return '$' + val.toLocaleString();
+            }
+        }
     }
 };
 
@@ -665,8 +669,8 @@ topProductsChart.render();
 // Category Sales Chart
 const categorySalesOptions = {
     series: [{
-        name: 'Sales',
-        data: [400, 430, 448, 470, 540, 580, 690, 1100, 1200, 1380]
+        name: 'Revenue',
+        data: chartData.salesByCategory.map(item => item.total_revenue)
     }],
     chart: {
         type: 'bar',
@@ -684,7 +688,7 @@ const categorySalesOptions = {
     dataLabels: {
         enabled: true,
         formatter: function (val) {
-            return val + "K";
+            return '$' + val.toLocaleString();
         },
         style: {
             fontSize: '12px',
@@ -692,7 +696,7 @@ const categorySalesOptions = {
         }
     },
     xaxis: {
-        categories: ['Electronics', 'Fashion', 'Home & Garden', 'Sports', 'Books', 'Beauty', 'Automotive', 'Toys', 'Health', 'Food']
+        categories: chartData.salesByCategory.map(item => item.category)
     }
 };
 
@@ -701,56 +705,35 @@ categorySalesChart.render();
 
 // Regional Performance Chart
 const regionalPerformanceOptions = {
-    series: [
-        {
-            name: 'North America',
-            data: [44, 55, 57, 56, 61, 58, 63, 60, 66]
-        },
-        {
-            name: 'Europe',
-            data: [76, 85, 101, 98, 87, 105, 91, 114, 94]
-        },
-        {
-            name: 'Asia',
-            data: [35, 41, 36, 26, 45, 48, 52, 53, 41]
-        }
-    ],
+    series: [{
+        name: 'Revenue',
+        data: chartData.regionalPerformance.map(item => item.total_revenue)
+    }],
     chart: {
         type: 'bar',
         height: 300
     },
+    colors: ['#20c997'],
     plotOptions: {
         bar: {
-            horizontal: false,
-            columnWidth: '55%',
-            endingShape: 'rounded'
-        }
-    },
-    legend: {
-        show: true,
-        position: 'top'
-    },
-    colors: ['#0d6efd', '#20c997', '#ffc107'],
-    dataLabels: {
-        enabled: false
-    },
-    stroke: {
-        show: true,
-        width: 2,
-        colors: ['transparent']
-    },
-    xaxis: {
-        categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep']
-    },
-    fill: {
-        opacity: 1
-    },
-    tooltip: {
-        y: {
-            formatter: function (val) {
-                return '$ ' + val + ' thousands';
+            horizontal: true,
+            dataLabels: {
+                position: 'top'
             }
         }
+    },
+    dataLabels: {
+        enabled: true,
+        formatter: function (val) {
+            return '$' + val.toLocaleString();
+        },
+        style: {
+            fontSize: '12px',
+            colors: ['#304758']
+        }
+    },
+    xaxis: {
+        categories: chartData.regionalPerformance.map(item => item.region)
     }
 };
 

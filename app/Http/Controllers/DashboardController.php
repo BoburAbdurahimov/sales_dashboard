@@ -58,12 +58,16 @@ class DashboardController extends Controller
         $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
         $conversionRate = 3.2; // Default conversion rate
 
+        // Generate chart data for dashboard
+        $chartData = $this->generateChartData(now()->subDays(30), now(), null, null, null, null, null, null, null, null, null, null);
+
         return view('sales.reports', [
             'salesData' => $salesData,
             'totalRevenue' => $totalRevenue,
             'totalOrders' => $totalOrders,
             'avgOrderValue' => $avgOrderValue,
             'conversionRate' => $conversionRate,
+            'chartData' => $chartData,
             'salesByCategory' => $salesByCategory,
             'salesByRegion' => $salesByRegion,
             'salesOverTime' => $salesOverTime,
@@ -344,12 +348,16 @@ class DashboardController extends Controller
         $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
         $conversionRate = 3.2; // This would be calculated based on your business logic
 
+        // Generate chart data
+        $chartData = $this->generateChartData($dateFrom, $dateTo, $category, $region, $customerId, $productId, $minQuantity, $maxQuantity, $minAmount, $maxAmount, $gender, $ageRange);
+
         return view('sales.reports', [
             'salesData' => $salesData,
             'totalRevenue' => $totalRevenue,
             'totalOrders' => $totalOrders,
             'avgOrderValue' => $avgOrderValue,
             'conversionRate' => $conversionRate,
+            'chartData' => $chartData,
             'filters' => [
                 'date_from' => $dateFrom,
                 'date_to' => $dateTo,
@@ -365,5 +373,88 @@ class DashboardController extends Controller
                 'age_range' => $ageRange,
             ],
         ]);
+    }
+
+    private function generateChartData($dateFrom, $dateTo, $category, $region, $customerId, $productId, $minQuantity, $maxQuantity, $minAmount, $maxAmount, $gender, $ageRange)
+    {
+        $chartData = [
+            'revenueTrend' => [],
+            'topProducts' => [],
+            'salesByCategory' => [],
+            'regionalPerformance' => [],
+        ];
+
+        // Revenue Trend (Monthly)
+        $driver = DB::getDriverName();
+        if ($driver === 'sqlite') {
+            $dateFormat = "strftime('%Y-%m', sales.created_at)";
+        } else {
+            $dateFormat = "DATE_FORMAT(sales.created_at, '%Y-%m')";
+        }
+        $revenueTrend = Sale::join('products', 'sales.product_id', '=', 'products.id')
+            ->select(DB::raw("$dateFormat as month"), DB::raw('SUM(sales.quantity * products.price) as total_revenue'))
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'month' => $item->month,
+                    'total_revenue' => (float) $item->total_revenue,
+                ];
+            });
+        $chartData['revenueTrend'] = $revenueTrend;
+
+        // Top Products
+        $topProducts = Sale::join('products', 'sales.product_id', '=', 'products.id')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+            ->select('sales.product_id', 'products.name as product_name', DB::raw('SUM(sales.quantity) as total_quantity, SUM(sales.quantity * products.price) as total_revenue'))
+            ->groupBy('sales.product_id', 'products.name')
+            ->orderBy('total_revenue', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'product_name' => $item->product_name,
+                    'total_quantity' => (int) $item->total_quantity,
+                    'total_revenue' => (float) $item->total_revenue,
+                ];
+            });
+        $chartData['topProducts'] = $topProducts;
+
+        // Sales by Category
+        $salesByCategory = Sale::join('products', 'sales.product_id', '=', 'products.id')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+            ->select('products.category', DB::raw('SUM(sales.quantity) as total_quantity, SUM(sales.quantity * products.price) as total_revenue'))
+            ->groupBy('products.category')
+            ->orderBy('total_revenue', 'desc')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'category' => $item->category,
+                    'total_quantity' => (int) $item->total_quantity,
+                    'total_revenue' => (float) $item->total_revenue,
+                ];
+            });
+        $chartData['salesByCategory'] = $salesByCategory;
+
+        // Regional Performance
+        $regionalPerformance = Sale::join('customers', 'sales.customer_id', '=', 'customers.id')
+            ->join('products', 'sales.product_id', '=', 'products.id')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+            ->select('customers.region', DB::raw('SUM(sales.quantity) as total_quantity, SUM(sales.quantity * products.price) as total_revenue'))
+            ->groupBy('customers.region')
+            ->orderBy('total_revenue', 'desc')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'region' => $item->region,
+                    'total_quantity' => (int) $item->total_quantity,
+                    'total_revenue' => (float) $item->total_revenue,
+                ];
+            });
+        $chartData['regionalPerformance'] = $regionalPerformance;
+
+        return $chartData;
     }
 } 
