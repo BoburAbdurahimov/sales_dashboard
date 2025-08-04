@@ -12,7 +12,7 @@ class CustomerSeeder extends Seeder
     {
         $faker = Faker::create();
         $regions = ['North', 'South', 'East', 'West', 'Central'];
-        $genders = ['male', 'female', 'other'];
+        $genders = ['male', 'female'];
         
         for ($i = 0; $i < 100; $i++) {
             Customer::create([

@@ -48,15 +48,43 @@ class DashboardController extends Controller
         $totalCustomers = Customer::count();
         $totalProducts = Product::count();
 
+        // Get paginated sales data for the reports view
+        $salesData = Sale::with(['customer', 'product'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
+
+        // Calculate additional metrics for consistency with reports method
+        $totalRevenue = $totalSales; // Use the same value as totalSales
+        $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
+        $conversionRate = 3.2; // Default conversion rate
+
         return view('sales.reports', [
+            'salesData' => $salesData,
+            'totalRevenue' => $totalRevenue,
+            'totalOrders' => $totalOrders,
+            'avgOrderValue' => $avgOrderValue,
+            'conversionRate' => $conversionRate,
             'salesByCategory' => $salesByCategory,
             'salesByRegion' => $salesByRegion,
             'salesOverTime' => $salesOverTime,
             'recentSales' => $recentSales,
             'totalSales' => $totalSales,
-            'totalOrders' => $totalOrders,
             'totalCustomers' => $totalCustomers,
             'totalProducts' => $totalProducts,
+            'filters' => [
+                'date_from' => now()->subDays(30)->format('d-m-Y'),
+                'date_to' => now()->format('d-m-Y'),
+                'category' => null,
+                'region' => null,
+                'customer_id' => null,
+                'product_id' => null,
+                'min_quantity' => null,
+                'max_quantity' => null,
+                'min_amount' => null,
+                'max_amount' => null,
+                'gender' => null,
+                'age_range' => null,
+            ],
         ]);
     }
 
