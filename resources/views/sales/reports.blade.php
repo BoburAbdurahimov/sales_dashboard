@@ -151,9 +151,9 @@
                                 <button type="button" class="btn btn-outline-secondary" onclick="resetFilters()">
                                     <i class="bi bi-arrow-clockwise"></i> Reset Filters
                                 </button>
-                                <!-- <button type="button" class="btn btn-outline-primary" onclick="toggleMoreFilters()">
+                                <button type="button" class="btn btn-outline-primary" onclick="toggleMoreFilters()">
                                     <i class="bi bi-funnel-fill"></i> More Filters
-                                </button> -->
+                                </button>
                             </div>
                         </div>
 
@@ -170,9 +170,9 @@
                                     <button type="button" class="btn btn-sm btn-outline-success" onclick="applyQuickFilter('this_month')">
                                         <i class="bi bi-calendar-month"></i> This Month
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="applyQuickFilter('high_value')">
+                                    <!-- <button type="button" class="btn btn-sm btn-outline-warning" onclick="applyQuickFilter('high_value')">
                                         <i class="bi bi-currency-dollar"></i> High Value ($100+)
-                                    </button>
+                                    </button> -->
                                     <button type="button" class="btn btn-sm btn-outline-info" onclick="applyQuickFilter('bulk_orders')">
                                         <i class="bi bi-box-seam"></i> Bulk Orders (5+)
                                     </button>
@@ -648,6 +648,7 @@ const revenueTrendOptions = {
 
 window.revenueTrendChart = new ApexCharts(document.querySelector('#revenue-trend-chart'), revenueTrendOptions);
 window.revenueTrendChart.render();
+console.log('revenueTrendChart initialized');
 
 // Top Products Chart
 const topProductsOptions = {
@@ -672,6 +673,7 @@ const topProductsOptions = {
 
 window.topProductsChart = new ApexCharts(document.querySelector('#top-products-chart'), topProductsOptions);
 window.topProductsChart.render();
+console.log('topProductsChart initialized');
 
 // Category Sales Chart
 const categorySalesOptions = {
@@ -709,6 +711,7 @@ const categorySalesOptions = {
 
 window.categorySalesChart = new ApexCharts(document.querySelector('#category-sales-chart'), categorySalesOptions);
 window.categorySalesChart.render();
+console.log('categorySalesChart initialized');
 
 // Regional Performance Chart
 const regionalPerformanceOptions = {
@@ -746,6 +749,7 @@ const regionalPerformanceOptions = {
 
 window.regionalPerformanceChart = new ApexCharts(document.querySelector('#regional-performance-chart'), regionalPerformanceOptions);
 window.regionalPerformanceChart.render();
+console.log('regionalPerformanceChart initialized');
 
 // Export Report Function
 function exportReport() {
@@ -870,6 +874,12 @@ function setChartPeriod(period) {
         (period === '7d' ? '7D' : period === '30d' ? '30D' : period === '90d' ? '90D' : '1Y'));
     if (activeBtn) activeBtn.classList.add('active');
 
+    // Check if charts are initialized
+    if (!window.revenueTrendChart) {
+        console.error('revenueTrendChart is not initialized');
+        return;
+    }
+
     // Show loading states for all charts
     const revenueChartContainer = document.querySelector('#revenue-trend-chart');
     const topProductsContainer = document.querySelector('#top-products-chart');
@@ -896,85 +906,124 @@ function setChartPeriod(period) {
             return response.json();
         })
         .then(data => {
-            // Update revenue trend chart with real data
-            if (window.revenueTrendChart) {
-                window.revenueTrendChart.updateOptions({
-                    xaxis: { 
-                        categories: data.revenueTrend.map(item => item.month)
-                    },
-                    yaxis: {
-                        labels: {
-                            formatter: function (val) {
-                                return '$' + val.toFixed(2);
+            console.log('Received chart data:', data);
+            
+            try {
+                // Update revenue trend chart with real data
+                if (window.revenueTrendChart) {
+                    window.revenueTrendChart.updateOptions({
+                        xaxis: { 
+                            categories: data.revenueTrend.map(item => item.month)
+                        },
+                        yaxis: {
+                            labels: {
+                                formatter: function (val) {
+                                    return '$' + val.toFixed(2);
+                                }
                             }
-                        }
-                    },
-                    series: [
-                        { 
-                            name: 'Revenue', 
-                            data: data.revenueTrend.map(item => item.total_revenue)
-                        }
-                    ]
-                });
-            }
+                        },
+                        series: [
+                            { 
+                                name: 'Revenue', 
+                                data: data.revenueTrend.map(item => item.total_revenue)
+                            }
+                        ]
+                    });
+                } else {
+                    console.error('revenueTrendChart is not defined');
+                }
 
             // Update top products chart
             if (window.topProductsChart && data.topProducts) {
-                window.topProductsChart.updateOptions({
-                    series: data.topProducts.map(item => item.total_revenue),
-                    labels: data.topProducts.map(item => item.product_name)
-                });
+                try {
+                    window.topProductsChart.updateOptions({
+                        series: data.topProducts.map(item => item.total_revenue),
+                        labels: data.topProducts.map(item => item.product_name)
+                    });
+                } catch (error) {
+                    console.error('Error updating top products chart:', error);
+                }
+            } else {
+                console.error('topProductsChart is not defined or no data');
             }
 
             // Update category sales chart
             if (window.categorySalesChart && data.salesByCategory) {
-                window.categorySalesChart.updateOptions({
-                    xaxis: { 
-                        categories: data.salesByCategory.map(item => item.category)
-                    },
-                    series: [{
-                        name: 'Revenue',
-                        data: data.salesByCategory.map(item => item.total_revenue)
-                    }]
-                });
+                try {
+                    window.categorySalesChart.updateOptions({
+                        xaxis: { 
+                            categories: data.salesByCategory.map(item => item.category)
+                        },
+                        series: [{
+                            name: 'Revenue',
+                            data: data.salesByCategory.map(item => item.total_revenue)
+                        }]
+                    });
+                } catch (error) {
+                    console.error('Error updating category sales chart:', error);
+                }
+            } else {
+                console.error('categorySalesChart is not defined or no data');
             }
 
             // Update regional performance chart
             if (window.regionalPerformanceChart && data.regionalPerformance) {
-                window.regionalPerformanceChart.updateOptions({
-                    xaxis: { 
-                        categories: data.regionalPerformance.map(item => item.region)
-                    },
-                    series: [{
-                        name: 'Revenue',
-                        data: data.regionalPerformance.map(item => item.total_revenue)
-                    }]
-                });
+                try {
+                    window.regionalPerformanceChart.updateOptions({
+                        xaxis: { 
+                            categories: data.regionalPerformance.map(item => item.region)
+                        },
+                        series: [{
+                            name: 'Revenue',
+                            data: data.regionalPerformance.map(item => item.total_revenue)
+                        }]
+                    });
+                } catch (error) {
+                    console.error('Error updating regional performance chart:', error);
+                }
+            } else {
+                console.error('regionalPerformanceChart is not defined or no data');
             }
 
             // Update conversion rate if available
             if (data.conversionRate !== undefined) {
-                const conversionRateElement = document.querySelector('.card-body p:contains("Conversion Rate") + div h3.mb-0');
-                if (conversionRateElement) {
-                    conversionRateElement.textContent = data.conversionRate.toFixed(1) + '%';
-                } else {
-                    // Fallback: find by text content
-                    const allCards = document.querySelectorAll('.card-body');
-                    allCards.forEach(card => {
-                        const title = card.querySelector('p.text-secondary');
-                        if (title && title.textContent.includes('Conversion Rate')) {
-                            const rateElement = card.querySelector('h3.mb-0');
-                            if (rateElement) {
-                                rateElement.textContent = data.conversionRate.toFixed(1) + '%';
+                try {
+                    const conversionRateElement = document.querySelector('.card-body p:contains("Conversion Rate") + div h3.mb-0');
+                    if (conversionRateElement) {
+                        conversionRateElement.textContent = data.conversionRate.toFixed(1) + '%';
+                    } else {
+                        // Fallback: find by text content
+                        const allCards = document.querySelectorAll('.card-body');
+                        allCards.forEach(card => {
+                            const title = card.querySelector('p.text-secondary');
+                            if (title && title.textContent.includes('Conversion Rate')) {
+                                const rateElement = card.querySelector('h3.mb-0');
+                                if (rateElement) {
+                                    rateElement.textContent = data.conversionRate.toFixed(1) + '%';
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error updating conversion rate:', error);
                 }
             }
+        } catch (error) {
+            console.error('Error in chart update process:', error);
+            revenueChartContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error updating charts</p><small>' + error.message + '</small></div>';
+        }
         })
         .catch(error => {
             console.error('Error fetching chart data:', error);
-            revenueChartContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error loading chart data</p></div>';
+            console.error('Error details:', error.message);
+            console.error('Chart variables:', {
+                revenueTrendChart: typeof window.revenueTrendChart,
+                topProductsChart: typeof window.topProductsChart,
+                categorySalesChart: typeof window.categorySalesChart,
+                regionalPerformanceChart: typeof window.regionalPerformanceChart
+            });
+            
+            revenueChartContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error loading chart data</p><small>' + error.message + '</small></div>';
             if (topProductsContainer) topProductsContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error loading chart data</p></div>';
             if (categoryChartContainer) categoryChartContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error loading chart data</p></div>';
             if (regionalChartContainer) regionalChartContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error loading chart data</p></div>';
@@ -1086,6 +1135,8 @@ function resetFilters() {
 function applyQuickFilter(preset) {
     const form = document.getElementById('reportForm');
     
+    console.log('Applying quick filter:', preset);
+    
     // Helper function to format date as dd-mm-yyyy
     const formatDate = (date) => {
         const day = String(date.getDate()).padStart(2, '0');
@@ -1113,13 +1164,32 @@ function applyQuickFilter(preset) {
             form.date_to.value = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
             break;
         case 'high_value':
-            form.min_amount.value = '100';
+            const minAmountField = form.querySelector('[name="min_amount"]');
+            if (minAmountField) {
+                minAmountField.value = '100';
+                console.log('Set min_amount to 100');
+            } else {
+                console.error('min_amount field not found');
+            }
+            // Show the more advanced filters section so the user can see the applied filter
+            const moreAdvancedFilters = document.getElementById('moreAdvancedFilters');
+            if (moreAdvancedFilters) {
+                moreAdvancedFilters.style.display = 'block';
+                console.log('Showed more advanced filters');
+            }
             break;
         case 'bulk_orders':
-            form.min_quantity.value = '5';
+            const minQuantityField = form.querySelector('[name="min_quantity"]');
+            if (minQuantityField) {
+                minQuantityField.value = '5';
+                console.log('Set min_quantity to 5');
+            } else {
+                console.error('min_quantity field not found');
+            }
             break;
     }
     
+    console.log('Submitting form with preset:', preset);
     form.submit();
 }
 </script>
