@@ -14,7 +14,7 @@ class CustomerSeeder extends Seeder
         $regions = ['North', 'South', 'East', 'West', 'Central'];
         $genders = ['male', 'female'];
         
-        for ($i = 0; $i < 100; $i++) {
+        for ($i = 0; $i < 20; $i++) {
             Customer::create([
                 'name' => $faker->name,
                 'email' => $faker->unique()->safeEmail,

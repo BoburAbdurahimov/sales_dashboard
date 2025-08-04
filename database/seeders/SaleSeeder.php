@@ -16,7 +16,7 @@ class SaleSeeder extends Seeder
         $customerIds = Customer::pluck('id')->toArray();
         $productIds = Product::pluck('id')->toArray();
         
-        for ($i = 0; $i < 400; $i++) {
+        for ($i = 0; $i < 30; $i++) {
             Sale::create([
                 'customer_id' => $faker->randomElement($customerIds),
                 'product_id' => $faker->randomElement($productIds),
