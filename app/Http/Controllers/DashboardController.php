@@ -110,7 +110,7 @@ class DashboardController extends Controller
 
         // Build query for sales data
         $salesQuery = Sale::with(['customer', 'product'])
-            ->whereBetween('created_at', [$dateFrom, $dateTo]);
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo]);
 
         // Apply category filter
         if ($category) {
@@ -138,10 +138,10 @@ class DashboardController extends Controller
 
         // Apply quantity range filters
         if ($minQuantity) {
-            $salesQuery->where('quantity', '>=', $minQuantity);
+            $salesQuery->where('sales.quantity', '>=', $minQuantity);
         }
         if ($maxQuantity) {
-            $salesQuery->where('quantity', '<=', $maxQuantity);
+            $salesQuery->where('sales.quantity', '<=', $maxQuantity);
         }
 
         // Apply gender filter
@@ -225,39 +225,104 @@ class DashboardController extends Controller
         $salesData = $salesQuery->paginate(15)->withQueryString();
 
         // Calculate report statistics - using product price instead of unit_price
-        $totalRevenue = Sale::join('products', 'sales.product_id', '=', 'products.id')
+        $totalRevenueQuery = Sale::join('products', 'sales.product_id', '=', 'products.id')
             ->whereBetween('sales.created_at', [$dateFrom, $dateTo]);
         
         // Apply the same filters to revenue calculation
         if ($category) {
-            $totalRevenue->whereHas('product', function ($query) use ($category) {
+            $totalRevenueQuery->where('products.category', $category);
+        }
+        if ($region) {
+            $totalRevenueQuery->join('customers', 'sales.customer_id', '=', 'customers.id')
+                            ->where('customers.region', $region);
+        }
+        if ($customerId) {
+            $totalRevenueQuery->where('sales.customer_id', $customerId);
+        }
+        if ($productId) {
+            $totalRevenueQuery->where('sales.product_id', $productId);
+        }
+        if ($minQuantity) {
+            $totalRevenueQuery->where('sales.quantity', '>=', $minQuantity);
+        }
+        if ($maxQuantity) {
+            $totalRevenueQuery->where('sales.quantity', '<=', $maxQuantity);
+        }
+        if ($minAmount) {
+            $totalRevenueQuery->whereRaw('(sales.quantity * products.price) >= ?', [$minAmount]);
+        }
+        if ($maxAmount) {
+            $totalRevenueQuery->whereRaw('(sales.quantity * products.price) <= ?', [$maxAmount]);
+        }
+        if ($gender) {
+            if (!$region) {
+                $totalRevenueQuery->join('customers', 'sales.customer_id', '=', 'customers.id');
+            }
+            $totalRevenueQuery->where('customers.gender', $gender);
+        }
+        if ($ageRange) {
+            if (!$region && !$gender) {
+                $totalRevenueQuery->join('customers', 'sales.customer_id', '=', 'customers.id');
+            }
+            switch ($ageRange) {
+                case '18-25':
+                    $totalRevenueQuery->whereBetween('customers.age', [18, 25]);
+                    break;
+                case '26-35':
+                    $totalRevenueQuery->whereBetween('customers.age', [26, 35]);
+                    break;
+                case '36-50':
+                    $totalRevenueQuery->whereBetween('customers.age', [36, 50]);
+                    break;
+                case '51+':
+                    $totalRevenueQuery->where('customers.age', '>=', 51);
+                    break;
+            }
+        }
+        
+        $totalRevenue = $totalRevenueQuery->sum(DB::raw('sales.quantity * products.price'));
+        
+        // Calculate total orders with the same filters
+        $totalOrdersQuery = Sale::whereBetween('sales.created_at', [$dateFrom, $dateTo]);
+        
+        if ($category) {
+            $totalOrdersQuery->whereHas('product', function ($query) use ($category) {
                 $query->where('category', $category);
             });
         }
         if ($region) {
-            $totalRevenue->whereHas('customer', function ($query) use ($region) {
+            $totalOrdersQuery->whereHas('customer', function ($query) use ($region) {
                 $query->where('region', $region);
             });
         }
         if ($customerId) {
-            $totalRevenue->where('customer_id', $customerId);
+            $totalOrdersQuery->where('sales.customer_id', $customerId);
         }
         if ($productId) {
-            $totalRevenue->where('product_id', $productId);
+            $totalOrdersQuery->where('sales.product_id', $productId);
         }
         if ($minQuantity) {
-            $totalRevenue->where('quantity', '>=', $minQuantity);
+            $totalOrdersQuery->where('sales.quantity', '>=', $minQuantity);
         }
         if ($maxQuantity) {
-            $totalRevenue->where('quantity', '<=', $maxQuantity);
+            $totalOrdersQuery->where('sales.quantity', '<=', $maxQuantity);
+        }
+        if ($minAmount || $maxAmount) {
+            $totalOrdersQuery->join('products', 'sales.product_id', '=', 'products.id');
+            if ($minAmount) {
+                $totalOrdersQuery->whereRaw('(sales.quantity * products.price) >= ?', [$minAmount]);
+            }
+            if ($maxAmount) {
+                $totalOrdersQuery->whereRaw('(sales.quantity * products.price) <= ?', [$maxAmount]);
+            }
         }
         if ($gender) {
-            $totalRevenue->whereHas('customer', function ($query) use ($gender) {
+            $totalOrdersQuery->whereHas('customer', function ($query) use ($gender) {
                 $query->where('gender', $gender);
             });
         }
         if ($ageRange) {
-            $totalRevenue->whereHas('customer', function ($query) use ($ageRange) {
+            $totalOrdersQuery->whereHas('customer', function ($query) use ($ageRange) {
                 switch ($ageRange) {
                     case '18-25':
                         $query->whereBetween('age', [18, 25]);
@@ -275,9 +340,7 @@ class DashboardController extends Controller
             });
         }
         
-        $totalRevenue = $totalRevenue->sum(DB::raw('sales.quantity * products.price'));
-        
-        $totalOrders = $salesQuery->count();
+        $totalOrders = $totalOrdersQuery->count();
         $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
         $conversionRate = 3.2; // This would be calculated based on your business logic
 

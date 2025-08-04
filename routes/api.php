@@ -6,15 +6,15 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\AuthController;
 
+// Sales reports and exports (public) - must be defined BEFORE resource routes
+Route::get('/sales/reports', [SaleController::class, 'reports'])->name('api.sales.reports');
+Route::get('/sales/export', [SaleController::class, 'export'])->name('api.sales.export');
+Route::get('/sales/export-test', [SaleController::class, 'export'])->name('api.sales.export.test');
+
 // Public API routes (no authentication required)
 Route::apiResource('customers', CustomerController::class);
 Route::apiResource('products', ProductController::class);
 Route::apiResource('sales', SaleController::class);
-
-// Sales reports and exports (public)
-Route::get('/sales/reports', [SaleController::class, 'reports'])->name('api.sales.reports');
-Route::get('/sales/export', [SaleController::class, 'export'])->name('api.sales.export');
-Route::get('/sales/export-test', [SaleController::class, 'export'])->name('api.sales.export.test');
 
 // Test routes (public)
 Route::get('/test/customers', [CustomerController::class, 'index']);

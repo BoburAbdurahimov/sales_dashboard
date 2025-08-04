@@ -56,12 +56,14 @@ class SaleController extends Controller
             
             $query = Sale::with(['customer', 'product']);
 
-            // Date range filters
+            // Date range filters - convert from dd-mm-yyyy to Y-m-d format
             if ($request->filled('date_from')) {
-                $query->whereDate('created_at', '>=', $request->input('date_from'));
+                $dateFrom = \Carbon\Carbon::createFromFormat('d-m-Y', $request->input('date_from'))->startOfDay();
+                $query->whereDate('created_at', '>=', $dateFrom);
             }
             if ($request->filled('date_to')) {
-                $query->whereDate('created_at', '<=', $request->input('date_to'));
+                $dateTo = \Carbon\Carbon::createFromFormat('d-m-Y', $request->input('date_to'))->endOfDay();
+                $query->whereDate('created_at', '<=', $dateTo);
             }
 
             // Category filter via related product
