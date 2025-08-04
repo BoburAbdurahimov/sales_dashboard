@@ -56,7 +56,7 @@ class DashboardController extends Controller
         // Calculate additional metrics for consistency with reports method
         $totalRevenue = $totalSales; // Use the same value as totalSales
         $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
-        $conversionRate = 3.2; // Default conversion rate
+        $conversionRate = $this->calculateConversionRate(now()->subDays(30), now(), null, null, null, null, null, null, null, null, null, null);
 
         // Generate chart data for dashboard
         $chartData = $this->generateChartData(now()->subDays(30), now(), null, null, null, null, null, null, null, null, null, null);
@@ -346,7 +346,7 @@ class DashboardController extends Controller
         
         $totalOrders = $totalOrdersQuery->count();
         $avgOrderValue = $totalOrders > 0 ? $totalRevenue / $totalOrders : 0;
-        $conversionRate = 3.2; // This would be calculated based on your business logic
+        $conversionRate = $this->calculateConversionRate($dateFrom, $dateTo, $category, $region, $customerId, $productId, $minQuantity, $maxQuantity, $minAmount, $maxAmount, $gender, $ageRange);
 
         // Generate chart data
         $chartData = $this->generateChartData($dateFrom, $dateTo, $category, $region, $customerId, $productId, $minQuantity, $maxQuantity, $minAmount, $maxAmount, $gender, $ageRange);
@@ -375,6 +375,75 @@ class DashboardController extends Controller
         ]);
     }
 
+    public function calculateConversionRate($dateFrom, $dateTo, $category, $region, $customerId, $productId, $minQuantity, $maxQuantity, $minAmount, $maxAmount, $gender, $ageRange)
+    {
+        // Calculate conversion rate based on multiple factors
+        
+        // 1. Customer Purchase Rate (customers who made purchases in the period)
+        $customersWithPurchases = Sale::whereBetween('created_at', [$dateFrom, $dateTo])
+            ->distinct('customer_id')
+            ->count('customer_id');
+        
+        $totalCustomers = Customer::count();
+        $customerConversionRate = $totalCustomers > 0 ? ($customersWithPurchases / $totalCustomers) * 100 : 0;
+        
+        // 2. Repeat Purchase Rate (customers with multiple orders)
+        $repeatCustomers = Sale::whereBetween('created_at', [$dateFrom, $dateTo])
+            ->groupBy('customer_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->count();
+        
+        $repeatPurchaseRate = $customersWithPurchases > 0 ? ($repeatCustomers / $customersWithPurchases) * 100 : 0;
+        
+        // 3. Average Order Value Growth Rate
+        $currentPeriodAvg = Sale::join('products', 'sales.product_id', '=', 'products.id')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+            ->avg(DB::raw('sales.quantity * products.price'));
+        
+        $previousPeriodStart = $dateFrom->copy()->subDays($dateFrom->diffInDays($dateTo));
+        $previousPeriodEnd = $dateFrom->copy()->subDays(1);
+        
+        $previousPeriodAvg = Sale::join('products', 'sales.product_id', '=', 'products.id')
+            ->whereBetween('sales.created_at', [$previousPeriodStart, $previousPeriodEnd])
+            ->avg(DB::raw('sales.quantity * products.price'));
+        
+        $avgOrderGrowthRate = $previousPeriodAvg > 0 ? (($currentPeriodAvg - $previousPeriodAvg) / $previousPeriodAvg) * 100 : 0;
+        
+        // 4. Product Category Performance
+        $categoryPerformance = Sale::join('products', 'sales.product_id', '=', 'products.id')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+            ->groupBy('products.category')
+            ->select('products.category', DB::raw('COUNT(*) as order_count'))
+            ->orderBy('order_count', 'desc')
+            ->first();
+        
+        $topCategoryRate = $categoryPerformance ? 100 : 0; // If we have top performing category
+        
+        // 5. Regional Performance
+        $regionalPerformance = Sale::join('customers', 'sales.customer_id', '=', 'customers.id')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+            ->groupBy('customers.region')
+            ->select('customers.region', DB::raw('COUNT(*) as order_count'))
+            ->orderBy('order_count', 'desc')
+            ->first();
+        
+        $topRegionRate = $regionalPerformance ? 100 : 0; // If we have top performing region
+        
+        // Calculate weighted conversion rate
+        $conversionRate = (
+            ($customerConversionRate * 0.3) +      // 30% weight
+            ($repeatPurchaseRate * 0.25) +         // 25% weight
+            (max(0, $avgOrderGrowthRate) * 0.2) + // 20% weight (only positive growth)
+            ($topCategoryRate * 0.15) +            // 15% weight
+            ($topRegionRate * 0.1)                 // 10% weight
+        );
+        
+        // Ensure the rate is between 0 and 100
+        $conversionRate = max(0, min(100, $conversionRate));
+        
+        return round($conversionRate, 1);
+    }
+
     private function generateChartData($dateFrom, $dateTo, $category, $region, $customerId, $productId, $minQuantity, $maxQuantity, $minAmount, $maxAmount, $gender, $ageRange)
     {
         $chartData = [
@@ -384,30 +453,164 @@ class DashboardController extends Controller
             'regionalPerformance' => [],
         ];
 
-        // Revenue Trend (Monthly)
+        // Calculate the date range difference to determine grouping
+        $daysDiff = $dateFrom->diffInDays($dateTo);
+        
+        // Determine date format based on period length
         $driver = DB::getDriverName();
-        if ($driver === 'sqlite') {
-            $dateFormat = "strftime('%Y-%m', sales.created_at)";
+        if ($daysDiff <= 30) {
+            // For 30 days or less, group by day
+            if ($driver === 'sqlite') {
+                $dateFormat = "strftime('%Y-%m-%d', sales.created_at)";
+            } else {
+                $dateFormat = "DATE_FORMAT(sales.created_at, '%Y-%m-%d')";
+            }
+            $dateColumn = 'day';
+        } elseif ($daysDiff <= 90) {
+            // For 90 days or less, group by week
+            if ($driver === 'sqlite') {
+                $dateFormat = "strftime('%Y-W%W', sales.created_at)";
+            } else {
+                $dateFormat = "DATE_FORMAT(sales.created_at, '%Y-W%u')";
+            }
+            $dateColumn = 'week';
         } else {
-            $dateFormat = "DATE_FORMAT(sales.created_at, '%Y-%m')";
+            // For longer periods, group by month
+            if ($driver === 'sqlite') {
+                $dateFormat = "strftime('%Y-%m', sales.created_at)";
+            } else {
+                $dateFormat = "DATE_FORMAT(sales.created_at, '%Y-%m')";
+            }
+            $dateColumn = 'month';
         }
-        $revenueTrend = Sale::join('products', 'sales.product_id', '=', 'products.id')
-            ->select(DB::raw("$dateFormat as month"), DB::raw('SUM(sales.quantity * products.price) as total_revenue'))
-            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
-            ->groupBy('month')
-            ->orderBy('month')
+
+        // Build the base query with filters
+        $revenueTrendQuery = Sale::join('products', 'sales.product_id', '=', 'products.id')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo]);
+
+        // Apply filters
+        if ($category) {
+            $revenueTrendQuery->where('products.category', $category);
+        }
+        if ($region) {
+            $revenueTrendQuery->join('customers', 'sales.customer_id', '=', 'customers.id')
+                            ->where('customers.region', $region);
+        }
+        if ($customerId) {
+            $revenueTrendQuery->where('sales.customer_id', $customerId);
+        }
+        if ($productId) {
+            $revenueTrendQuery->where('sales.product_id', $productId);
+        }
+        if ($minQuantity) {
+            $revenueTrendQuery->where('sales.quantity', '>=', $minQuantity);
+        }
+        if ($maxQuantity) {
+            $revenueTrendQuery->where('sales.quantity', '<=', $maxQuantity);
+        }
+        if ($minAmount) {
+            $revenueTrendQuery->whereRaw('(sales.quantity * products.price) >= ?', [$minAmount]);
+        }
+        if ($maxAmount) {
+            $revenueTrendQuery->whereRaw('(sales.quantity * products.price) <= ?', [$maxAmount]);
+        }
+        if ($gender) {
+            if (!$region) {
+                $revenueTrendQuery->join('customers', 'sales.customer_id', '=', 'customers.id');
+            }
+            $revenueTrendQuery->where('customers.gender', $gender);
+        }
+        if ($ageRange) {
+            if (!$region && !$gender) {
+                $revenueTrendQuery->join('customers', 'sales.customer_id', '=', 'customers.id');
+            }
+            switch ($ageRange) {
+                case '18-25':
+                    $revenueTrendQuery->whereBetween('customers.age', [18, 25]);
+                    break;
+                case '26-35':
+                    $revenueTrendQuery->whereBetween('customers.age', [26, 35]);
+                    break;
+                case '36-50':
+                    $revenueTrendQuery->whereBetween('customers.age', [36, 50]);
+                    break;
+                case '51+':
+                    $revenueTrendQuery->where('customers.age', '>=', 51);
+                    break;
+            }
+        }
+
+        // Revenue Trend
+        $revenueTrend = $revenueTrendQuery
+            ->select(DB::raw("$dateFormat as $dateColumn"), DB::raw('SUM(sales.quantity * products.price) as total_revenue'))
+            ->groupBy($dateColumn)
+            ->orderBy($dateColumn)
             ->get()
-            ->map(function ($item) {
+            ->map(function ($item) use ($dateColumn) {
                 return [
-                    'month' => $item->month,
+                    'month' => $item->$dateColumn,
                     'total_revenue' => (float) $item->total_revenue,
                 ];
             });
         $chartData['revenueTrend'] = $revenueTrend;
 
         // Top Products
-        $topProducts = Sale::join('products', 'sales.product_id', '=', 'products.id')
-            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+        $topProductsQuery = Sale::join('products', 'sales.product_id', '=', 'products.id')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo]);
+
+        // Apply the same filters to top products query
+        if ($category) {
+            $topProductsQuery->where('products.category', $category);
+        }
+        if ($region) {
+            $topProductsQuery->join('customers', 'sales.customer_id', '=', 'customers.id')
+                            ->where('customers.region', $region);
+        }
+        if ($customerId) {
+            $topProductsQuery->where('sales.customer_id', $customerId);
+        }
+        if ($productId) {
+            $topProductsQuery->where('sales.product_id', $productId);
+        }
+        if ($minQuantity) {
+            $topProductsQuery->where('sales.quantity', '>=', $minQuantity);
+        }
+        if ($maxQuantity) {
+            $topProductsQuery->where('sales.quantity', '<=', $maxQuantity);
+        }
+        if ($minAmount) {
+            $topProductsQuery->whereRaw('(sales.quantity * products.price) >= ?', [$minAmount]);
+        }
+        if ($maxAmount) {
+            $topProductsQuery->whereRaw('(sales.quantity * products.price) <= ?', [$maxAmount]);
+        }
+        if ($gender) {
+            if (!$region) {
+                $topProductsQuery->join('customers', 'sales.customer_id', '=', 'customers.id');
+            }
+            $topProductsQuery->where('customers.gender', $gender);
+        }
+        if ($ageRange) {
+            if (!$region && !$gender) {
+                $topProductsQuery->join('customers', 'sales.customer_id', '=', 'customers.id');
+            }
+            switch ($ageRange) {
+                case '18-25':
+                    $topProductsQuery->whereBetween('customers.age', [18, 25]);
+                    break;
+                case '26-35':
+                    $topProductsQuery->whereBetween('customers.age', [26, 35]);
+                    break;
+                case '36-50':
+                    $topProductsQuery->whereBetween('customers.age', [36, 50]);
+                    break;
+                case '51+':
+                    $topProductsQuery->where('customers.age', '>=', 51);
+                    break;
+            }
+        }
+
+        $topProducts = $topProductsQuery
             ->select('sales.product_id', 'products.name as product_name', DB::raw('SUM(sales.quantity) as total_quantity, SUM(sales.quantity * products.price) as total_revenue'))
             ->groupBy('sales.product_id', 'products.name')
             ->orderBy('total_revenue', 'desc')
@@ -423,8 +626,59 @@ class DashboardController extends Controller
         $chartData['topProducts'] = $topProducts;
 
         // Sales by Category
-        $salesByCategory = Sale::join('products', 'sales.product_id', '=', 'products.id')
-            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+        $categoryQuery = Sale::join('products', 'sales.product_id', '=', 'products.id')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo]);
+
+        // Apply the same filters to category query
+        if ($region) {
+            $categoryQuery->join('customers', 'sales.customer_id', '=', 'customers.id')
+                         ->where('customers.region', $region);
+        }
+        if ($customerId) {
+            $categoryQuery->where('sales.customer_id', $customerId);
+        }
+        if ($productId) {
+            $categoryQuery->where('sales.product_id', $productId);
+        }
+        if ($minQuantity) {
+            $categoryQuery->where('sales.quantity', '>=', $minQuantity);
+        }
+        if ($maxQuantity) {
+            $categoryQuery->where('sales.quantity', '<=', $maxQuantity);
+        }
+        if ($minAmount) {
+            $categoryQuery->whereRaw('(sales.quantity * products.price) >= ?', [$minAmount]);
+        }
+        if ($maxAmount) {
+            $categoryQuery->whereRaw('(sales.quantity * products.price) <= ?', [$maxAmount]);
+        }
+        if ($gender) {
+            if (!$region) {
+                $categoryQuery->join('customers', 'sales.customer_id', '=', 'customers.id');
+            }
+            $categoryQuery->where('customers.gender', $gender);
+        }
+        if ($ageRange) {
+            if (!$region && !$gender) {
+                $categoryQuery->join('customers', 'sales.customer_id', '=', 'customers.id');
+            }
+            switch ($ageRange) {
+                case '18-25':
+                    $categoryQuery->whereBetween('customers.age', [18, 25]);
+                    break;
+                case '26-35':
+                    $categoryQuery->whereBetween('customers.age', [26, 35]);
+                    break;
+                case '36-50':
+                    $categoryQuery->whereBetween('customers.age', [36, 50]);
+                    break;
+                case '51+':
+                    $categoryQuery->where('customers.age', '>=', 51);
+                    break;
+            }
+        }
+
+        $salesByCategory = $categoryQuery
             ->select('products.category', DB::raw('SUM(sales.quantity) as total_quantity, SUM(sales.quantity * products.price) as total_revenue'))
             ->groupBy('products.category')
             ->orderBy('total_revenue', 'desc')
@@ -439,9 +693,53 @@ class DashboardController extends Controller
         $chartData['salesByCategory'] = $salesByCategory;
 
         // Regional Performance
-        $regionalPerformance = Sale::join('customers', 'sales.customer_id', '=', 'customers.id')
+        $regionalQuery = Sale::join('customers', 'sales.customer_id', '=', 'customers.id')
             ->join('products', 'sales.product_id', '=', 'products.id')
-            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo]);
+
+        // Apply the same filters to regional query
+        if ($category) {
+            $regionalQuery->where('products.category', $category);
+        }
+        if ($customerId) {
+            $regionalQuery->where('sales.customer_id', $customerId);
+        }
+        if ($productId) {
+            $regionalQuery->where('sales.product_id', $productId);
+        }
+        if ($minQuantity) {
+            $regionalQuery->where('sales.quantity', '>=', $minQuantity);
+        }
+        if ($maxQuantity) {
+            $regionalQuery->where('sales.quantity', '<=', $maxQuantity);
+        }
+        if ($minAmount) {
+            $regionalQuery->whereRaw('(sales.quantity * products.price) >= ?', [$minAmount]);
+        }
+        if ($maxAmount) {
+            $regionalQuery->whereRaw('(sales.quantity * products.price) <= ?', [$maxAmount]);
+        }
+        if ($gender) {
+            $regionalQuery->where('customers.gender', $gender);
+        }
+        if ($ageRange) {
+            switch ($ageRange) {
+                case '18-25':
+                    $regionalQuery->whereBetween('customers.age', [18, 25]);
+                    break;
+                case '26-35':
+                    $regionalQuery->whereBetween('customers.age', [26, 35]);
+                    break;
+                case '36-50':
+                    $regionalQuery->whereBetween('customers.age', [36, 50]);
+                    break;
+                case '51+':
+                    $regionalQuery->where('customers.age', '>=', 51);
+                    break;
+            }
+        }
+
+        $regionalPerformance = $regionalQuery
             ->select('customers.region', DB::raw('SUM(sales.quantity) as total_quantity, SUM(sales.quantity * products.price) as total_revenue'))
             ->groupBy('customers.region')
             ->orderBy('total_revenue', 'desc')
@@ -456,5 +754,58 @@ class DashboardController extends Controller
         $chartData['regionalPerformance'] = $regionalPerformance;
 
         return $chartData;
+    }
+
+    public function getChartData(Request $request)
+    {
+        $period = $request->get('period', '30d');
+        $category = $request->get('category');
+        $region = $request->get('region');
+        $customerId = $request->get('customer_id');
+        $productId = $request->get('product_id');
+        $minQuantity = $request->get('min_quantity');
+        $maxQuantity = $request->get('max_quantity');
+        $minAmount = $request->get('min_amount');
+        $maxAmount = $request->get('max_amount');
+        $gender = $request->get('gender');
+        $ageRange = $request->get('age_range');
+
+        // Calculate date range based on period
+        $now = now();
+        switch ($period) {
+            case '7d':
+                $dateFrom = $now->copy()->subDays(7);
+                $dateTo = $now;
+                break;
+            case '30d':
+                $dateFrom = $now->copy()->subDays(30);
+                $dateTo = $now;
+                break;
+            case '90d':
+                $dateFrom = $now->copy()->subDays(90);
+                $dateTo = $now;
+                break;
+            case '1y':
+                $dateFrom = $now->copy()->subYear();
+                $dateTo = $now;
+                break;
+            default:
+                $dateFrom = $now->copy()->subDays(30);
+                $dateTo = $now;
+        }
+
+        // Generate chart data with filters
+        $chartData = $this->generateChartData(
+            $dateFrom, $dateTo, $category, $region, $customerId, $productId,
+            $minQuantity, $maxQuantity, $minAmount, $maxAmount, $gender, $ageRange
+        );
+
+        // Add conversion rate to chart data
+        $chartData['conversionRate'] = $this->calculateConversionRate(
+            $dateFrom, $dateTo, $category, $region, $customerId, $productId,
+            $minQuantity, $maxQuantity, $minAmount, $maxAmount, $gender, $ageRange
+        );
+
+        return response()->json($chartData);
     }
 } 

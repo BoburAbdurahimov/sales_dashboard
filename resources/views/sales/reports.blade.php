@@ -630,6 +630,13 @@ const revenueTrendOptions = {
         type: 'category',
         categories: chartData.revenueTrend.map(item => item.month)
     },
+    yaxis: {
+        labels: {
+            formatter: function (val) {
+                return '$' + val.toFixed(2);
+            }
+        }
+    },
     tooltip: {
         y: {
             formatter: function (val) {
@@ -639,8 +646,8 @@ const revenueTrendOptions = {
     }
 };
 
-const revenueTrendChart = new ApexCharts(document.querySelector('#revenue-trend-chart'), revenueTrendOptions);
-revenueTrendChart.render();
+window.revenueTrendChart = new ApexCharts(document.querySelector('#revenue-trend-chart'), revenueTrendOptions);
+window.revenueTrendChart.render();
 
 // Top Products Chart
 const topProductsOptions = {
@@ -663,8 +670,8 @@ const topProductsOptions = {
     }
 };
 
-const topProductsChart = new ApexCharts(document.querySelector('#top-products-chart'), topProductsOptions);
-topProductsChart.render();
+window.topProductsChart = new ApexCharts(document.querySelector('#top-products-chart'), topProductsOptions);
+window.topProductsChart.render();
 
 // Category Sales Chart
 const categorySalesOptions = {
@@ -700,8 +707,8 @@ const categorySalesOptions = {
     }
 };
 
-const categorySalesChart = new ApexCharts(document.querySelector('#category-sales-chart'), categorySalesOptions);
-categorySalesChart.render();
+window.categorySalesChart = new ApexCharts(document.querySelector('#category-sales-chart'), categorySalesOptions);
+window.categorySalesChart.render();
 
 // Regional Performance Chart
 const regionalPerformanceOptions = {
@@ -737,8 +744,8 @@ const regionalPerformanceOptions = {
     }
 };
 
-const regionalPerformanceChart = new ApexCharts(document.querySelector('#regional-performance-chart'), regionalPerformanceOptions);
-regionalPerformanceChart.render();
+window.regionalPerformanceChart = new ApexCharts(document.querySelector('#regional-performance-chart'), regionalPerformanceOptions);
+window.regionalPerformanceChart.render();
 
 // Export Report Function
 function exportReport() {
@@ -863,51 +870,115 @@ function setChartPeriod(period) {
         (period === '7d' ? '7D' : period === '30d' ? '30D' : period === '90d' ? '90D' : '1Y'));
     if (activeBtn) activeBtn.classList.add('active');
 
-    // Simulated data for each period
-    let dataSets = {
-        '7d': {
-            categories: [
-                '2025-07-25', '2025-07-26', '2025-07-27', '2025-07-28', '2025-07-29', '2025-07-30', '2025-07-31'
-            ],
-            revenue: [12000, 15000, 11000, 17000, 16000, 18000, 21000],
-            orders: [5000, 7000, 6000, 8000, 7500, 9000, 9500]
-        },
-        '30d': {
-            categories: Array.from({length: 30}, (_, i) => {
-                let d = new Date('2025-07-02');
-                d.setDate(d.getDate() + i);
-                return d.toISOString().slice(0, 10);
-            }),
-            revenue: Array.from({length: 30}, () => Math.floor(10000 + Math.random() * 15000)),
-            orders: Array.from({length: 30}, () => Math.floor(4000 + Math.random() * 8000))
-        },
-        '90d': {
-            categories: Array.from({length: 13}, (_, i) => {
-                let d = new Date('2025-05-01');
-                d.setDate(d.getDate() + i * 7);
-                return d.toISOString().slice(0, 10);
-            }),
-            revenue: [31000, 40000, 28000, 51000, 42000, 82000, 56000, 74000, 61000, 89000, 76000, 92000, 98000],
-            orders: [11000, 32000, 45000, 32000, 34000, 52000, 41000, 80000, 56000, 55000, 67000, 88000, 99000]
-        },
-        '1y': {
-            categories: [
-                '2024-08-01', '2024-09-01', '2024-10-01', '2024-11-01',
-                '2024-12-01', '2025-01-01', '2025-02-01', '2025-03-01',
-                '2025-04-01', '2025-05-01', '2025-06-01', '2025-07-01'
-            ],
-            revenue: [31000, 40000, 28000, 51000, 42000, 82000, 56000, 74000, 61000, 89000, 76000, 92000],
-            orders: [11000, 32000, 45000, 32000, 34000, 52000, 41000, 80000, 56000, 55000, 67000, 88000]
-        }
-    };
-    let data = dataSets[period] || dataSets['90d'];
-    revenueTrendChart.updateOptions({
-        xaxis: { categories: data.categories },
-        series: [
-            { name: 'Revenue', data: data.revenue },
-            { name: 'Orders', data: data.orders }
-        ]
-    });
+    // Show loading states for all charts
+    const revenueChartContainer = document.querySelector('#revenue-trend-chart');
+    const topProductsContainer = document.querySelector('#top-products-chart');
+    const categoryChartContainer = document.querySelector('#category-sales-chart');
+    const regionalChartContainer = document.querySelector('#regional-performance-chart');
+    
+    revenueChartContainer.innerHTML = '<div class="text-center p-4"><i class="bi bi-hourglass-split fs-1"></i><p>Loading revenue data...</p></div>';
+    if (topProductsContainer) topProductsContainer.innerHTML = '<div class="text-center p-4"><i class="bi bi-hourglass-split fs-1"></i><p>Loading products data...</p></div>';
+    if (categoryChartContainer) categoryChartContainer.innerHTML = '<div class="text-center p-4"><i class="bi bi-hourglass-split fs-1"></i><p>Loading category data...</p></div>';
+    if (regionalChartContainer) regionalChartContainer.innerHTML = '<div class="text-center p-4"><i class="bi bi-hourglass-split fs-1"></i><p>Loading regional data...</p></div>';
+
+    // Get current form data for filters
+    const form = document.getElementById('reportForm');
+    const formData = new FormData(form);
+    const params = new URLSearchParams(formData);
+    params.append('period', period);
+
+    // Fetch real data from API
+    fetch(`/api/sales/chart-data?${params.toString()}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Update revenue trend chart with real data
+            if (window.revenueTrendChart) {
+                window.revenueTrendChart.updateOptions({
+                    xaxis: { 
+                        categories: data.revenueTrend.map(item => item.month)
+                    },
+                    yaxis: {
+                        labels: {
+                            formatter: function (val) {
+                                return '$' + val.toFixed(2);
+                            }
+                        }
+                    },
+                    series: [
+                        { 
+                            name: 'Revenue', 
+                            data: data.revenueTrend.map(item => item.total_revenue)
+                        }
+                    ]
+                });
+            }
+
+            // Update top products chart
+            if (window.topProductsChart && data.topProducts) {
+                window.topProductsChart.updateOptions({
+                    series: data.topProducts.map(item => item.total_revenue),
+                    labels: data.topProducts.map(item => item.product_name)
+                });
+            }
+
+            // Update category sales chart
+            if (window.categorySalesChart && data.salesByCategory) {
+                window.categorySalesChart.updateOptions({
+                    xaxis: { 
+                        categories: data.salesByCategory.map(item => item.category)
+                    },
+                    series: [{
+                        name: 'Revenue',
+                        data: data.salesByCategory.map(item => item.total_revenue)
+                    }]
+                });
+            }
+
+            // Update regional performance chart
+            if (window.regionalPerformanceChart && data.regionalPerformance) {
+                window.regionalPerformanceChart.updateOptions({
+                    xaxis: { 
+                        categories: data.regionalPerformance.map(item => item.region)
+                    },
+                    series: [{
+                        name: 'Revenue',
+                        data: data.regionalPerformance.map(item => item.total_revenue)
+                    }]
+                });
+            }
+
+            // Update conversion rate if available
+            if (data.conversionRate !== undefined) {
+                const conversionRateElement = document.querySelector('.card-body p:contains("Conversion Rate") + div h3.mb-0');
+                if (conversionRateElement) {
+                    conversionRateElement.textContent = data.conversionRate.toFixed(1) + '%';
+                } else {
+                    // Fallback: find by text content
+                    const allCards = document.querySelectorAll('.card-body');
+                    allCards.forEach(card => {
+                        const title = card.querySelector('p.text-secondary');
+                        if (title && title.textContent.includes('Conversion Rate')) {
+                            const rateElement = card.querySelector('h3.mb-0');
+                            if (rateElement) {
+                                rateElement.textContent = data.conversionRate.toFixed(1) + '%';
+                            }
+                        }
+                    });
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching chart data:', error);
+            revenueChartContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error loading chart data</p></div>';
+            if (topProductsContainer) topProductsContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error loading chart data</p></div>';
+            if (categoryChartContainer) categoryChartContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error loading chart data</p></div>';
+            if (regionalChartContainer) regionalChartContainer.innerHTML = '<div class="text-center p-4 text-danger"><i class="bi bi-exclamation-triangle fs-1"></i><p>Error loading chart data</p></div>';
+        });
 }
 
 // Initialize datepickers

@@ -16,12 +16,12 @@ class SaleSeeder extends Seeder
         $customerIds = Customer::pluck('id')->toArray();
         $productIds = Product::pluck('id')->toArray();
         
-        for ($i = 0; $i < 30; $i++) {
+        for ($i = 0; $i < 300; $i++) {
             Sale::create([
                 'customer_id' => $faker->randomElement($customerIds),
                 'product_id' => $faker->randomElement($productIds),
                 'quantity' => $faker->numberBetween(1, 10),
-                'created_at' => $faker->dateTimeBetween('-1 year', 'now'),
+                'created_at' => $faker->dateTimeBetween('-5 year', 'now'),
                 'updated_at' => $faker->dateTimeBetween('-1 year', 'now'),
             ]);
         }
